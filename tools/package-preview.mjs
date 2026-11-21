@@ -1,0 +1,18 @@
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {fileURLToPath} from 'node:url';
+import path from 'node:path';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const availability=(await readFile(path.join(root,'ui/availability.js'),'utf8')).replace(/^export /gm,'');
+const recommendations=(await readFile(path.join(root,'ui/recommendations.js'),'utf8')).replace(/^export /gm,'');
+const profiles=(await readFile(path.join(root,'ui/seat-profiles.demo.js'),'utf8')).replace(/^export /gm,'');
+const workspace=(await readFile(path.join(root,'ui/seat-workspace.js'),'utf8')).replace(/^import .*?;\r?\n/gm,'').replace(/^export /gm,'');
+const bundle=(await readFile(path.join(root,'assets/index-seatlink-ui.js'),'utf8')).replace(/^import .*?;\n/,'');
+const originalCss=await readFile(path.join(root,'assets/index-Cany1VuR.css'),'utf8');
+const css=await readFile(path.join(root,'ui/seat-workspace.css'),'utf8');
+const recCss=await readFile(path.join(root,'ui/recommendations.css'),'utf8');
+const script=[availability,recommendations,profiles,workspace,bundle].join('\n').replaceAll('</script','<\\/script');
+const html=`<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>SeatLink · 偏好推荐版</title><style>${originalCss}\n${css}\n${recCss}</style></head><body><div id="root"></div><script type="module">${script}</script></body></html>`;
+await writeFile(path.join(root,'preview.html'),html);
+await mkdir(path.join(root,'../outputs'),{recursive:true});
+await writeFile(path.join(root,'../outputs/SeatLink_偏好推荐版_预览.html'),html);
+console.log('Created a self-contained preview. Open the HTML file directly in Edge.');

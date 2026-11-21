@@ -1,0 +1,42 @@
+{
+  "description": "现场数据模板，不会自动替换演示标签。未知字段使用null，接入前须核对编号与坐标。",
+  "timeZone": "Asia/Shanghai",
+  "windowTimeUnit": "seconds_from_midnight",
+  "timestampUnit": "unix_seconds",
+  "seats": [
+    {
+      "seatId": "替换为真实座位编号",
+      "building": null,
+      "floor": null,
+      "zone": null,
+      "source": "unverified",
+      "verifiedAt": null,
+      "positionVerified": false,
+      "power": null,
+      "daylight": null,
+      "quietZone": null,
+      "partition": null,
+      "nearAisle": null,
+      "directAir": null,
+      "sunReferenceDate": null,
+      "directSunWindows": null,
+      "nearby": {
+        "definition": "正式采集时填写邻座范围和真实编号列表",
+        "seatIds": [],
+        "date": null,
+        "observedAt": null,
+        "occupied": null,
+        "total": null,
+        "unknown": null,
+        "source": "unverified"
+      },
+      "fieldEvidence": {
+        "power": {"source": null, "observedAt": null, "verified": false},
+        "daylight": {"source": null, "observedAt": null, "verified": false},
+        "directSunWindows": {"source": null, "observedAt": null, "verified": false},
+        "quietZone": {"source": null, "observedAt": null, "verified": false},
+        "nearby": {"source": null, "observedAt": null, "verified": false}
+      }
+    }
+  ]
+}

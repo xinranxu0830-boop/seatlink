@@ -1,0 +1,9 @@
+{
+  "name": "seatlink-ui-improvements",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node tools/integrate-ui.mjs",
+    "test": "node --test tests/availability.test.mjs tests/recommendations.test.mjs"
+  }
+}

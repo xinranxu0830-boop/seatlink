@@ -1,0 +1,11 @@
+import {readFile} from 'node:fs/promises';
+import {spawnSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+import path from 'node:path';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const html=await readFile(path.join(root,'preview.html'),'utf8');
+const script=html.match(/<script type="module">([\s\S]*)<\/script>/)?.[1];
+if(!script||/^import\s/m.test(script))throw new Error('Standalone preview has missing or external JavaScript');
+const checked=spawnSync(process.execPath,['--input-type=module','--check'],{input:script,encoding:'utf8'});
+if(checked.status!==0)throw new Error(checked.stderr||'Preview syntax check failed');
+console.log('Standalone preview: self-contained module, syntax valid.');
