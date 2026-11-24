@@ -124,6 +124,30 @@ try{
   await nav(mobile,'拼座').click();
   expect(await mobile.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
   await mobile.getByRole('button',{name:'帮我找座',exact:true}).click();await expect(mobile.getByTestId('plan-card').first()).toBeVisible();
+  const shortSeats=mobile.getByRole('button',{name:'查看 45–59 分钟单座',exact:true});
+  await expect(shortSeats).toHaveCount(0);
+  if(width<=390){
+   await mobile.getByLabel('学习开始',{exact:true}).fill('21:40:00');
+   await mobile.getByLabel('希望学到',{exact:true}).fill('22:30:00');
+   await mobile.getByRole('button',{name:'帮我找座',exact:true}).click();
+   await expect(shortSeats).toBeVisible();
+   await expect(mobile.getByTestId('plan-card')).toHaveCount(0);
+   await shortSeats.click();
+   const shortCard=mobile.getByTestId('plan-card').first();
+   await expect(shortCard).toContainText('50 分钟');
+   await expect(shortCard).toContainText('无需换座');
+   expect(await mobile.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
+   if(width===375){
+    await mobile.locator('.result-title').evaluate(title=>title.scrollIntoView({block:'start'}));
+    await mobile.screenshot({path:'.qa/reader-short-seat-mobile.png'});
+   }
+   await shortCard.getByRole('button',{name:'确认预约短时单座',exact:true}).click();
+   await expect(mobile.getByRole('heading',{name:'我的预约',exact:true})).toBeVisible();
+   await expect(mobile.getByText('21:40–22:30',{exact:true})).toBeVisible();
+   await mobile.reload();
+   await nav(mobile,'预约').click();
+   await expect(mobile.getByText('21:40–22:30',{exact:true})).toBeVisible();
+  }
   await nav(mobile,'首页').click();await expect(mobile.getByRole('img',{name:'上海交通大学图书馆'})).toBeVisible();
   await expect(mobile.getByRole('button',{name:/^B200-东区/})).toBeDisabled();
   await mobile.waitForLoadState('networkidle');
@@ -133,5 +157,5 @@ try{
   await mobile.locator('.school-profile-row').filter({hasText:'模拟数据'}).click();await expect(mobile.getByRole('dialog',{name:'模拟数据',exact:true})).toBeVisible();
   await mobile.close();
  }
- expect(errors).toEqual([]);console.log('PASS: school theme, map default, home/area navigation, profile, desktop, 375/390/844px, preferences, map/list, strict validation, booking, persistence, 4 demos, renewal, replay import, gate, date rollover.');
+ expect(errors).toEqual([]);console.log('PASS: school theme, map default, home/area navigation, profile, desktop, 375/390/844px, preferences, map/list, strict validation, booking, persistence, guided demos, reader short-seat fallback, renewal, replay import, gate, date rollover.');
 }finally{await browser.close();}

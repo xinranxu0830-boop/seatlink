@@ -188,6 +188,20 @@ body { background: #edf1f5; }
 .school-app .compact-booking { border-radius: 3px; background: #fff; }
 .school-app .planner-panel { padding: 22px; background: #f5f5f5; }
 .school-app .planner-form,.school-app .demo-story,.school-app .plan-card { border-radius: 3px; background: white; }
+.school-app .short-seat-offer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 14px;
+  margin: 10px 0 14px;
+  background: var(--c-soft);
+  border: 1px solid #c7dfea;
+  border-radius: 3px;
+}
+.short-seat-offer p { margin: 0; font-size: 14px; }
+.compact-app .short-seat-offer button { color: #255b7a; border-color: #a8c7d8; }
 .school-app .compact-demo-bar { margin: 0; border-radius: 0; border: 0; border-bottom: 1px solid #c2dced; }
 .school-app .compact-error { border-radius: 0; }
 .school-home .banner { height: 240px; }
@@ -242,6 +256,7 @@ body { background: #edf1f5; }
   .school-app .compact-dialog { border-radius: 3px 3px 0 0; padding-inline: 18px; }
   .school-app .compact-bookings { padding: 0 14px 20px; }
   .school-app .planner-panel { padding: 16px 14px; }
+  .school-app .short-seat-offer button { width: 100%; }
   .school-app .plan-card header h3 { font-size: 17px; }
   .school-home .banner { height: 190px; }
   .school-home .banner > div { font-size: 14px; padding-inline: 14px; }

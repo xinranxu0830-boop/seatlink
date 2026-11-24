@@ -1,6 +1,7 @@
 import {OPEN,CLOSE,RULES,at,dayOf,timeValue,bookingDatesFor,seatsFor,readerFor,minBookingMinutes,freeSlots,overlap,live,reserveBatch} from './engine.js';
 
 export const PLANNER_DEFAULTS = Object.freeze({minSegmentMinutes:60,maxSwitches:1,maxGapMinutes:5,allowPartial:true,limit:3});
+export const SHORT_SEAT_MINUTES = 45;
 // The exact search is bounded to two switches for this small-region prototype.
 export const MAX_SWITCHES = 2;
 const seconds = (value,date) => typeof value==='string' ? at(date,timeValue(value)) : value;
@@ -92,6 +93,26 @@ function search(state,request,context=null) {
 /** Pure, deterministic; start/end accept HH:mm[:ss] or epoch seconds. */
 export function planSeats(state,input) {
  return search(state,normalize(state,input));
+}
+
+export function planReaderSeats(state,input) {
+ const result=planSeats(state,input);
+ const {request}=result;
+ if(result.plans.length||!request.allowPartial||
+   request.minSegmentMinutes!==PLANNER_DEFAULTS.minSegmentMinutes||
+   minBookingMinutes(state)!==PLANNER_DEFAULTS.minSegmentMinutes)return result;
+ const fallback=planSeats({...state,minReservationMinutes:SHORT_SEAT_MINUTES},{
+  ...request,minFirstSegmentMinutes:SHORT_SEAT_MINUTES,maxSegments:1,maxSwitches:0,maxGapMinutes:0,
+ });
+ return {...result,shortSeatPlans:fallback.plans};
+}
+
+export function bookReaderShortSeat(state,input,planId) {
+ const plan=planReaderSeats(state,input).shortSeatPlans?.find(option=>option.id===planId);
+ if(!plan)throw new Error('短时单座的可用时段已变化，请重新找座。');
+ // Scope the lower minimum to this confirmation.
+ const {minReservationMinutes:_shortMinimum,...booked}=bookPlan({...state,minReservationMinutes:SHORT_SEAT_MINUTES},plan);
+ return state.minReservationMinutes===undefined?booked:{...booked,minReservationMinutes:state.minReservationMinutes};
 }
 
 /** Recompute an extension after the latest retained segment of one booking plan.
