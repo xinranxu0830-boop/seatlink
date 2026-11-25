@@ -1,12 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { clock, dayOf, secOf } from './engine.js';
+import publishedReplay from './c200-replay.public.json';
 import './replay.css';
 
 const timeOf = (seconds, precise = false) => clock(secOf(seconds), precise);
 const interval = (start, end) => `${timeOf(start)}–${timeOf(end)}`;
 const percent = (value, digits = 3) => `${(100 * value).toFixed(digits)}%`;
 const minutes = new Intl.NumberFormat('zh-CN', {maximumFractionDigits: 1});
-const workloadLabels = { observed: '原始预约', pressure: '增加需求' };
+const workloadLabels = { observed: '真实记录', pressure: '模拟加量' };
 const isCount = value => Number.isInteger(value) && value >= 0;
 
 function validExample(example) {
@@ -35,8 +36,8 @@ function validSummary(data) {
 function LoadReplay({ loading, error, onLoad }) {
   return <section className="c200-replay">
     <h1>C200 东区预约回放</h1>
-    {loading ? <p role="status">正在读取本地回放结果。</p> : <>
-      <p>在项目的 <code>source</code> 目录运行 <code>npm run experiment:c200</code>，或导入已生成的 <code>c200-replay.json</code>。</p>
+    {loading ? <p role="status">正在读取回放结果。</p> : <>
+      <p>暂时无法读取回放，请刷新重试或导入汇总文件。</p>
       <label className="replay-import">导入回放汇总
         <input type="file" accept=".json,application/json" onChange={onLoad}/>
       </label>
@@ -112,10 +113,12 @@ function Example({ example, groups, date }) {
 }
 
 export default function ReplayPanel() {
-  const [summary, setSummary] = useState(null);
+  const [summary, setSummary] = useState(publishedReplay);
   const [loading, setLoading] = useState(import.meta.env.DEV);
   const [error, setError] = useState('');
   const [workloadIndex, setWorkloadIndex] = useState(0);
+  const [revision, setRevision] = useState(0);
+  const imported = useRef(false);
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
@@ -127,9 +130,12 @@ export default function ReplayPanel() {
         if (!response.ok) throw new Error();
         const data = await response.json();
         if (!validSummary(data)) throw new Error();
-        setSummary(data);
+        if (!imported.current) {
+          setSummary(data);
+          setRevision(value => value + 1);
+        }
       } catch {
-        if (!controller.signal.aborted) setError('本地汇总无法读取。可以重新生成或直接导入文件。');
+        // The published aggregate remains available if the local dev file is absent or invalid.
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
@@ -145,7 +151,10 @@ export default function ReplayPanel() {
     try {
       const data = JSON.parse(await file.text());
       if (!validSummary(data)) throw new Error();
+      imported.current = true;
       setSummary(data);
+      setRevision(value => value + 1);
+      setWorkloadIndex(0);
       setError('');
     } catch {
       setError('文件格式不匹配，请选择实验生成的回放汇总 JSON。');
@@ -167,7 +176,8 @@ export default function ReplayPanel() {
     </div>
     <section className="replay-section">
       <h2>四组回放结果</h2>
-      <p>共 {workload.totalRequests} 条请求，其中 {workload.effectiveRequests} 条有正有效时长。</p>
+      <p>共 {workload.totalRequests} 条请求，{workload.effectiveRequests} 条在预约开始后仍有效。
+        {workload.addedCount > 0 && ` 含 ${workload.addedCount} 条模拟请求。`}</p>
       <table className="replay-results">
         <thead><tr><th scope="col">策略</th><th scope="col">预约利用率</th><th scope="col">座位分钟</th><th scope="col">完整覆盖</th></tr></thead>
         <tbody>{workload.groups.map(group => <tr key={group.id}>
@@ -177,9 +187,16 @@ export default function ReplayPanel() {
           <td>{group.complete}/{workload.effectiveRequests}</td>
         </tr>)}</tbody>
       </table>
-      <p className="replay-caption">利用率按预约记录的真实结束时间裁剪后计算。</p>
+      <p className="replay-caption">按记录结束时间裁剪后的分配时长 ÷ 记录内座位开放总时长。属于回放结果，非实测在座率。</p>
     </section>
-    <TimeProfile summary={summary} workload={workload}/>
-    {workload.example && <Example key={workload.id} example={workload.example} groups={workload.groups} date={summary.date}/>}
+    <TimeProfile key={revision} summary={summary} workload={workload}/>
+    {workload.example && <Example key={`${revision}-${workload.id}`} example={workload.example} groups={workload.groups} date={summary.date}/>}
+    <details className="replay-tools">
+      <summary>导入其他汇总</summary>
+      <label className="replay-import">导入回放汇总
+        <input type="file" accept=".json,application/json" onChange={loadFile}/>
+      </label>
+    </details>
+    {error && <p className="compact-error" role="alert">{error}</p>}
   </section>;
 }

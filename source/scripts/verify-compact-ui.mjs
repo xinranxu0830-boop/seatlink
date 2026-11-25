@@ -87,6 +87,13 @@ try{
  await page.route('**/__seatlink/c200-replay',route=>route.fulfill({status:204}));
  await page.getByRole('button',{name:'场景演示',exact:true}).click();
  await page.getByRole('button',{name:'东区真实预约回放',exact:true}).click();
+ await expect(page.getByText('2026-10-29 · 108 个记录内座位 · 08:00–22:30')).toBeVisible();
+ await expect(page.getByRole('table').getByRole('row')).toHaveCount(5);
+ await expect(page.getByText('共 317 条请求，303 条在预约开始后仍有效。')).toBeVisible();
+ await page.screenshot({path:'.qa/replay-real-desktop.png',fullPage:true});
+ await page.getByRole('button',{name:/模拟加量/}).click();
+ await expect(page.getByText(/含 80 条模拟请求/)).toBeVisible();
+ await page.getByText('导入其他汇总',{exact:true}).click();
  const replayInput=page.getByLabel('导入回放汇总');
  const replayFile=data=>({name:'review.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(data))});
  const malformed={...replay,workloads:[{...replay.workloads[0],id:{}},replay.workloads[1]]};
@@ -94,8 +101,8 @@ try{
  await expect(page.getByRole('alert')).toContainText('文件格式不匹配');
  await replayInput.setInputFiles(replayFile(replay));
  await expect(page.getByRole('table').getByRole('row')).toHaveCount(5);
- await page.getByRole('button',{name:/增加需求/}).click();
- await expect(page.getByText('共 2 条请求，其中 2 条有正有效时长。')).toBeVisible();
+ await page.getByRole('button',{name:/模拟加量/}).click();
+ await expect(page.getByText('共 2 条请求，2 条在预约开始后仍有效。 含 1 条模拟请求。')).toBeVisible();
  await expect(page.getByRole('slider',{name:'回放时段'})).toHaveAttribute('aria-valuetext','08:00–08:30');
  expect(await page.evaluate(()=>localStorage.getItem('c200-reservation-simulator-v2'))).toBe(saved);
  await nav(page,'预约').click();
@@ -131,6 +138,12 @@ try{
   await mobile.getByRole('button',{name:/^C200-中区（M）/}).click();await expect(mobile.locator('.seat-map')).toBeVisible();
   await nav(mobile,'个人中心').click();await expect(mobile.getByText('演示读者',{exact:true})).toBeVisible();
   await mobile.locator('.school-profile-row').filter({hasText:'模拟数据'}).click();await expect(mobile.getByRole('dialog',{name:'模拟数据',exact:true})).toBeVisible();
+  await mobile.getByRole('button',{name:'关闭面板',exact:true}).click();
+  await mobile.locator('.school-subheader').getByRole('button',{name:'场景演示',exact:true}).click();
+  await mobile.getByRole('button',{name:'东区真实预约回放',exact:true}).click();
+  await expect(mobile.getByRole('table').getByRole('row')).toHaveCount(5);
+  expect(await mobile.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
+  if(width===375)await mobile.screenshot({path:'.qa/replay-real-mobile.png',fullPage:true});
   await mobile.close();
  }
  expect(errors).toEqual([]);console.log('PASS: school theme, map default, home/area navigation, profile, desktop, 375/390/844px, preferences, map/list, strict validation, booking, persistence, 4 demos, renewal, replay import, gate, date rollover.');
