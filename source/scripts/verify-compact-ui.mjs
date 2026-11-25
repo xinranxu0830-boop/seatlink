@@ -2,7 +2,7 @@ import {chromium,expect} from '@playwright/test';
 import {mkdir} from 'node:fs/promises';
 import {DEMO_PROFILES} from '../src/recommendation-service.js';
 import {at} from '../src/engine.js';
-import {runReservationReplay} from '../experiments/reservation-replay.mjs';
+import {runIncrementalReplay} from '../experiments/incremental-replay.mjs';
 const url=process.env.SEATLINK_URL||'http://127.0.0.1:5175/';
 const browser=await chromium.launch({headless:true,...(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{channel:'chrome'})});
 await mkdir('.qa',{recursive:true});
@@ -80,19 +80,23 @@ try{
  const replayDate='2026-01-01';
  const replayStart=at(replayDate,9*3600);
  const replayEnd=at(replayDate,11*3600);
- const replay=runReservationReplay({
+ const replay=runIncrementalReplay({
   date:replayDate, seats:['A'], endedAfterBooked:0,
   requests:[{id:1,readerId:'fixture',seatId:'A',submit:replayStart-3600,start:replayStart,end:replayEnd,release:replayEnd}],
- });
+ },[1,2]);
  await page.route('**/__seatlink/c200-replay',route=>route.fulfill({status:204}));
  await page.getByRole('button',{name:'场景演示',exact:true}).click();
- await page.getByRole('button',{name:'东区真实预约回放',exact:true}).click();
+ await page.getByRole('button',{name:'东区预约回放',exact:true}).click();
  await expect(page.getByText('2026-10-29 · 108 个记录内座位 · 08:00–22:30')).toBeVisible();
  await expect(page.getByRole('table').getByRole('row')).toHaveCount(5);
- await expect(page.getByText('共 317 条请求，303 条在预约开始后仍有效。')).toBeVisible();
+ await expect(page.getByRole('button',{name:'真实记录',exact:true})).toHaveCount(0);
+ await expect(page.getByText('已有预约 317 条，原有利用率 58.637%。')).toBeVisible();
+ for(const count of [80,100,150,200]) {
+  await page.getByRole('button',{name:`＋${count} 条`,exact:true}).click();
+  await expect(page.getByText(`${count} 条模拟新增请求。四组使用相同需求。`)).toBeVisible();
+  await expect(page.getByRole('table').getByRole('row')).toHaveCount(5);
+ }
  await page.screenshot({path:'.qa/replay-real-desktop.png',fullPage:true});
- await page.getByRole('button',{name:/模拟加量/}).click();
- await expect(page.getByText(/含 80 条模拟请求/)).toBeVisible();
  await page.getByText('导入其他汇总',{exact:true}).click();
  const replayInput=page.getByLabel('导入回放汇总');
  const replayFile=data=>({name:'review.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(data))});
@@ -101,8 +105,8 @@ try{
  await expect(page.getByRole('alert')).toContainText('文件格式不匹配');
  await replayInput.setInputFiles(replayFile(replay));
  await expect(page.getByRole('table').getByRole('row')).toHaveCount(5);
- await page.getByRole('button',{name:/模拟加量/}).click();
- await expect(page.getByText('共 2 条请求，2 条在预约开始后仍有效。 含 1 条模拟请求。')).toBeVisible();
+ await page.getByRole('button',{name:'＋2 条',exact:true}).click();
+ await expect(page.getByText('2 条模拟新增请求。四组使用相同需求。')).toBeVisible();
  await expect(page.getByRole('slider',{name:'回放时段'})).toHaveAttribute('aria-valuetext','08:00–08:30');
  expect(await page.evaluate(()=>localStorage.getItem('c200-reservation-simulator-v2'))).toBe(saved);
  await nav(page,'预约').click();
@@ -140,7 +144,8 @@ try{
   await mobile.locator('.school-profile-row').filter({hasText:'模拟数据'}).click();await expect(mobile.getByRole('dialog',{name:'模拟数据',exact:true})).toBeVisible();
   await mobile.getByRole('button',{name:'关闭面板',exact:true}).click();
   await mobile.locator('.school-subheader').getByRole('button',{name:'场景演示',exact:true}).click();
-  await mobile.getByRole('button',{name:'东区真实预约回放',exact:true}).click();
+  await mobile.getByRole('button',{name:'东区预约回放',exact:true}).click();
+  await mobile.getByRole('button',{name:'＋200 条',exact:true}).click();
   await expect(mobile.getByRole('table').getByRole('row')).toHaveCount(5);
   expect(await mobile.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
   if(width===375)await mobile.screenshot({path:'.qa/replay-real-mobile.png',fullPage:true});

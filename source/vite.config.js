@@ -21,7 +21,7 @@ export default defineConfig({
           return;
         }
         try {
-          const summary = await readFile(new URL('./.qa/c200-replay.json', import.meta.url));
+          const summary = await readFile(new URL('./.qa/c200-incremental.json', import.meta.url));
           response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
           response.end(summary);
         } catch (error) {

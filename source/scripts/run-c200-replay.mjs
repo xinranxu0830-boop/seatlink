@@ -5,13 +5,15 @@ import { fileURLToPath } from 'node:url';
 import { runReservationReplay } from '../experiments/reservation-replay.mjs';
 import { runHeavyPressure, runReplayImprovements } from '../experiments/replay-improvements.mjs';
 import { runDensityPressure } from '../experiments/density-pressure.mjs';
+import { runIncrementalReplay } from '../experiments/incremental-replay.mjs';
 
 const localPath = relative => fileURLToPath(new URL(relative, import.meta.url));
 const args = process.argv.slice(2);
 const improvements = args[0] === '--improvements';
 const heavyPressure = args[0] === '--heavy-pressure';
 const densityPressure = args[0] === '--density-pressure';
-if (improvements || heavyPressure || densityPressure) args.shift();
+const incremental = args[0] === '--incremental';
+if (improvements || heavyPressure || densityPressure || incremental) args.shift();
 let demandPath;
 const demandIndex = args.indexOf('--demand');
 if (demandIndex !== -1 && improvements && args[demandIndex + 1] && !args[demandIndex + 1].startsWith('--')) {
@@ -21,7 +23,7 @@ if (args.length > 1 || args[0]?.startsWith('--')) {
   throw new Error('用法：experiment:c200[:stress|:density] [预约表] 或 experiment:c200:improve [预约表] [--demand 匿名意向.json]');
 }
 const xlsx = resolve(args[0] ?? localPath('../../../data/2026-10-29-C200东区座位预约记录.xlsx'));
-const outputName = densityPressure ? 'c200-density-pressure-45min.json'
+const outputName = incremental ? 'c200-incremental.json' : densityPressure ? 'c200-density-pressure-45min.json'
   : heavyPressure ? 'c200-heavy-pressure.json' : improvements ? 'c200-improvements.json' : 'c200-replay.json';
 const output = localPath(`../.qa/${outputName}`);
 const python = process.env.SEATLINK_PYTHON ?? (process.platform === 'win32' ? 'python' : 'python3');
@@ -35,7 +37,7 @@ const bookings = JSON.parse(read.stdout);
 const demand = demandPath === undefined
   ? undefined
   : JSON.parse((await readFile(resolve(demandPath), 'utf8')).replace(/^\uFEFF/, ''));
-const result = densityPressure ? runDensityPressure(bookings, {
+const result = incremental ? runIncrementalReplay(bookings) : densityPressure ? runDensityPressure(bookings, {
   onTrial: (increase, seed) => console.log(`需求 +${increase}% · 种子 ${seed} 完成`),
 }) : heavyPressure ? runHeavyPressure(bookings)
   : improvements ? runReplayImprovements(bookings, demand) : runReservationReplay(bookings);
@@ -54,6 +56,7 @@ function printWorkload(workload) {
     strategy: improvements || heavyPressure ? group.id : group.label,
     seatMinutes: (group.occupiedSeconds / 60).toFixed(2),
     utilization: (100 * group.utilization).toFixed(3) + '%',
+    ...(incremental ? { addedMinutes:(group.addedSeconds/60).toFixed(2) } : {}),
     ...(improvements || heavyPressure ? { firstFailed: group.firstFailed, peakComplete: group.peak.complete } : {}),
     served: group.served,
     complete: group.complete,

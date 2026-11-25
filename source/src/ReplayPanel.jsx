@@ -7,7 +7,6 @@ const timeOf = (seconds, precise = false) => clock(secOf(seconds), precise);
 const interval = (start, end) => `${timeOf(start)}–${timeOf(end)}`;
 const percent = (value, digits = 3) => `${(100 * value).toFixed(digits)}%`;
 const minutes = new Intl.NumberFormat('zh-CN', {maximumFractionDigits: 1});
-const workloadLabels = { observed: '真实记录', pressure: '模拟加量' };
 const isCount = value => Number.isInteger(value) && value >= 0;
 
 function validExample(example) {
@@ -20,15 +19,18 @@ function validExample(example) {
 }
 
 function validSummary(data) {
-  return data?.schemaVersion === 1 && typeof data.date === 'string' &&
+  return data?.schemaVersion === 2 && data.mode === 'fixed-bookings' && typeof data.date === 'string' &&
+    isCount(data.backgroundCount) && Number.isFinite(data.historical?.utilization) &&
     [data.seatCount, data.open, data.close, data.binSeconds].every(Number.isFinite) &&
     data.seatCount > 0 && data.close > data.open && data.binSeconds > 0 &&
-    Array.isArray(data.workloads) && data.workloads.length === 2 &&
+    Array.isArray(data.workloads) && data.workloads.length > 0 &&
+    new Set(data.workloads.map(workload=>workload?.addedCount)).size === data.workloads.length &&
     data.workloads.every(workload => typeof workload?.id === 'string' &&
       [workload.totalRequests, workload.effectiveRequests, workload.addedCount].every(isCount) &&
+      workload.addedCount > 0 && workload.totalRequests === workload.addedCount &&
       Array.isArray(workload.groups) && workload.groups.length === 4 && validExample(workload.example) &&
       workload.groups.every(group => typeof group?.id === 'string' && typeof group.label === 'string' &&
-        [group.occupiedSeconds, group.utilization, group.complete].every(Number.isFinite) &&
+        [group.occupiedSeconds, group.addedSeconds, group.utilization, group.complete, group.served].every(Number.isFinite) &&
         Array.isArray(group.bins) && group.bins.length === Math.ceil((data.close - data.open) / data.binSeconds) &&
         group.bins.every(Number.isFinite)));
 }
@@ -55,7 +57,7 @@ function TimeProfile({ summary, workload }) {
   const limit = summary.seatCount * (binEnd - binStart);
   return <section className="replay-section">
     <div className="replay-section-heading">
-      <h2>分时预约利用率</h2>
+      <h2>分时总预约利用率</h2>
       <label>查看策略
         <select value={groupIndex} onChange={event => setGroupIndex(Number(event.target.value))}>
           {workload.groups.map((item, index) => <option key={item.id} value={index}>{item.label}</option>)}
@@ -157,7 +159,7 @@ export default function ReplayPanel() {
       setWorkloadIndex(0);
       setError('');
     } catch {
-      setError('文件格式不匹配，请选择实验生成的回放汇总 JSON。');
+      setError('文件格式不匹配，请选择新增需求实验生成的汇总 JSON。');
     } finally {
       input.value = '';
     }
@@ -168,26 +170,28 @@ export default function ReplayPanel() {
   return <section className="c200-replay" aria-labelledby="c200-replay-title">
     <h1 id="c200-replay-title">C200 东区预约回放</h1>
     <p>{summary.date} · {summary.seatCount} 个记录内座位 · {interval(summary.open, summary.close)}</p>
-    <div className="replay-tabs" role="group" aria-label="选择回放负载">
+    <p>已有预约 {summary.backgroundCount} 条，原有利用率 {percent(summary.historical.utilization)}。</p>
+    <p>已有预约保持原座位与时段，新增需求只安排剩余空位。</p>
+    <div className="replay-tabs" role="group" aria-label="选择模拟新增请求数">
       {summary.workloads.map((item, index) => <button key={item.id}
         aria-pressed={index === workloadIndex} onClick={() => setWorkloadIndex(index)}>
-        {workloadLabels[item.id] ?? item.id}{item.addedCount > 0 ? ` ＋${item.addedCount} 条` : ''}
+        ＋{item.addedCount} 条
       </button>)}
     </div>
     <section className="replay-section">
-      <h2>四组回放结果</h2>
-      <p>共 {workload.totalRequests} 条请求，{workload.effectiveRequests} 条在预约开始后仍有效。
-        {workload.addedCount > 0 && ` 含 ${workload.addedCount} 条模拟请求。`}</p>
+      <h2>新增需求的四组对比</h2>
+      <p>{workload.addedCount} 条模拟新增请求。四组使用相同需求。</p>
       <table className="replay-results">
-        <thead><tr><th scope="col">策略</th><th scope="col">预约利用率</th><th scope="col">座位分钟</th><th scope="col">完整覆盖</th></tr></thead>
+        <thead><tr><th scope="col">策略</th><th scope="col">有座</th><th scope="col">完整</th><th scope="col">新增分钟</th><th scope="col">总利用率</th></tr></thead>
         <tbody>{workload.groups.map(group => <tr key={group.id}>
           <th scope="row">{group.label}</th>
-          <td>{percent(group.utilization)}</td>
-          <td>{minutes.format(group.occupiedSeconds / 60)}</td>
+          <td>{group.served}/{workload.effectiveRequests}</td>
           <td>{group.complete}/{workload.effectiveRequests}</td>
+          <td>{minutes.format(group.addedSeconds / 60)}</td>
+          <td>{percent(group.utilization)}</td>
         </tr>)}</tbody>
       </table>
-      <p className="replay-caption">按记录结束时间裁剪后的分配时长 ÷ 记录内座位开放总时长。属于回放结果，非实测在座率。</p>
+      <p className="replay-caption">有座：至少安排一段；完整：覆盖全部目标时段。总利用率包含已有预约与新增分配，非实测在座率。</p>
     </section>
     <TimeProfile key={revision} summary={summary} workload={workload}/>
     {workload.example && <Example key={`${revision}-${workload.id}`} example={workload.example} groups={workload.groups} date={summary.date}/>}

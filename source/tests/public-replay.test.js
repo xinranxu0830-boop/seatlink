@@ -23,7 +23,7 @@ test('public replay excludes unexpected identifying fields at every level', () =
 });
 
 test('published replay reconciles seat capacity, time bins and request counts', () => {
-  assert.equal(published.workloads.length, 2);
+  assert.deepEqual(published.workloads.map(w=>w.addedCount), [80,100,150,200]);
   for (const workload of published.workloads) {
     assert.equal(workload.groups.length, 4);
     assert.ok(workload.effectiveRequests <= workload.totalRequests);
@@ -31,6 +31,8 @@ test('published replay reconciles seat capacity, time bins and request counts', 
       assert.equal(group.capacitySeconds, published.seatCount * (published.close - published.open));
       assert.equal(group.bins.reduce((sum, value) => sum + value, 0), group.occupiedSeconds);
       assert.equal(group.utilization, group.occupiedSeconds / group.capacitySeconds);
+      assert.equal(group.occupiedSeconds, published.historical.occupiedSeconds + group.addedSeconds);
+      assert.equal(group.addedBins.reduce((sum, value)=>sum+value,0), group.addedSeconds);
       assert.ok(group.utilization >= 0 && group.utilization <= 1);
       assert.ok(group.complete <= workload.effectiveRequests);
     }

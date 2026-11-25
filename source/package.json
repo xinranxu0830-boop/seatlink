@@ -9,6 +9,7 @@
     "build": "npm run build:views && vite build",
     "share": "npm run build && vite preview --host 0.0.0.0 --port 4173 --strictPort",
     "experiment:c200": "node scripts/run-c200-replay.mjs",
+    "experiment:c200:incremental": "node scripts/run-c200-replay.mjs --incremental",
     "experiment:c200:publish": "node scripts/build-public-replay.mjs",
     "experiment:c200:improve": "node scripts/run-c200-replay.mjs --improvements",
     "experiment:c200:stress": "node scripts/run-c200-replay.mjs --heavy-pressure",

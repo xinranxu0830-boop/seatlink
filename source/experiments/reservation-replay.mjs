@@ -40,7 +40,7 @@ function replayPolicy(data, requests, policy) {
   const queue = new Map();
   const waiting = new Set();
   function eventsAt(time) {
-    if (!queue.has(time)) queue.set(time, { arrivals: [], releases: [], checks: new Set(), waitlistCheck: false });
+    if (!queue.has(time)) queue.set(time, { arrivals: [], releases: [], fixedReleases: [], checks: new Set(), waitlistCheck: false });
     return queue.get(time);
   }
 
@@ -51,12 +51,26 @@ function replayPolicy(data, requests, policy) {
     if (policy.renew && release > start) eventsAt(start).checks.add(session);
   }
 
+  // In incremental experiments all historical bookings form an existing
+  // schedule snapshot. Keep their seats and planned intervals fixed; only
+  // reveal an early release when its recorded event time is reached.
+  const fixed = (data.backgroundReservations ?? []).map(request => {
+    const slot = {
+      id: `fixed-${request.id}`, userId: `fixed-${request.readerId}`, seatId: request.seatId,
+      date: data.date, start: request.start, end: request.end,
+      createdAt: request.submit, status: 'reserved', releasedAt: null,
+    };
+    eventsAt(request.release).fixedReleases.push(slot.id);
+    return slot;
+  });
+
   let state = {
     ...createState(true),
     events: [],
     replayDate: data.date,
     seats: data.seats.map(id => ({ id })),
     minReservationMinutes: policy.minFirstSegmentMinutes,
+    reservations: fixed,
   };
   const options = {
     date: data.date, limit: 1, maxGapMinutes, minSegmentMinutes, maxSwitches,
@@ -88,12 +102,12 @@ function replayPolicy(data, requests, policy) {
 
   while (queue.size) {
     const time = Math.min(...queue.keys());
-    const { arrivals, releases, checks, waitlistCheck } = queue.get(time);
+    const { arrivals, releases, fixedReleases, checks, waitlistCheck } = queue.get(time);
     let retryWaiting = waitlistCheck;
     queue.delete(time);
     state.now = time;
 
-    const releasedIds = new Set(releases.flatMap(session => session.slots.map(slot => slot.id)));
+    const releasedIds = new Set([...fixedReleases, ...releases.flatMap(session => session.slots.map(slot => slot.id))]);
     let freesSeat = false;
     if (releasedIds.size) {
       state.reservations = state.reservations.map(slot => {
@@ -244,7 +258,12 @@ function summarizePolicy(data, sessions, policy, baseline, diagnostics) {
       peakComplete += Number(covered === needed);
     }
   }
-  const result = { ...policy, ...summarizeSlots(data, allSlots), served, complete, switches, stitched, renewed, improved, reduced };
+  const additional = summarizeSlots(data, allSlots);
+  const background = (data.backgroundReservations ?? []).filter(request => effectiveSeconds(request) > 0)
+    .map(request => ({seatId:request.seatId,userId:`fixed-${request.readerId}`,start:request.start,end:request.release}));
+  const total = data.backgroundReservations ? summarizeSlots(data, [...background, ...allSlots]) : additional;
+  const result = { ...policy, ...total, served, complete, switches, stitched, renewed, improved, reduced,
+    ...(data.backgroundReservations ? {addedSeconds:additional.occupiedSeconds,addedBins:additional.bins} : {}) };
   if (!diagnostics) return result;
   const open = at(data.date, OPEN);
   const peakBins = result.bins.slice((peakStart - open) / BLOCK_SECONDS, (peakEnd - open) / BLOCK_SECONDS);
